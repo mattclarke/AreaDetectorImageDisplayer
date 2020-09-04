@@ -46,7 +46,7 @@ class EpicsFetcher:
             pv = PV(name)
             ans = pv.get(as_string=as_str)
             if not pv.connected:
-                raise PvNotFoundException("Unable to find PV %s" % name)
+                raise PvNotFoundException(f"Unable to find PV {name}")
             return ans
         except PvNotFoundException as err:
             # PV not found
@@ -54,19 +54,18 @@ class EpicsFetcher:
             raise
         except Exception as err:
             # Something general went wrong
-            raise PvGetException("Unable to get value for PV %s: %s" % (name, err))
+            raise PvGetException(f"Unable to get value for PV {name}: {err}")
 
     def get_ad_image_data(self, prefix):
-        raw = self.caget("%s:ArrayData" % prefix)
-        xsize = self.caget("%s:ArraySize0_RBV" % prefix)
-        ysize = self.caget("%s:ArraySize1_RBV" % prefix)
+        raw = self.caget(f"{prefix}:ArrayData")
+        xsize = self.caget(f"{prefix}:ArraySize0_RBV")
+        ysize = self.caget(f"{prefix}:ArraySize1_RBV")
         return raw, xsize, ysize
 
 
 if __name__ == "__main__":
     epics_client = EpicsFetcher()
     test = epics_client.get_ad_image_data("13SIM1:image1")
-    print(test)
     converter = ADConverter()
     filepath = converter.convert_to_jpg(test)
 
