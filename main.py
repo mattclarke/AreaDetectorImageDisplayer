@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from epics import PV
 from PIL import Image
 
-MAX_SIZE = 1024
+MAX_SIZE = 512
 QUALITY = 80
 
 
@@ -19,17 +19,14 @@ class ADConverter:
     def convert_to_jpg(self, data):
         path = f"{self.dir}out-{int(time.time())}.jpg"
         img = Image.frombuffer("L", (data[1], data[2]), data[0], "raw", "L", 0, 1)
-        img.save(path, "JPEG", quality=QUALITY)
         if img.width > MAX_SIZE or img.height > MAX_SIZE:
-            self._resize_image(path)
-        return os.path.abspath(path)
-
-    def _resize_image(self, path):
-        # For some reason we have to save then reopen the file
-        # to be able to resize it correctly!
-        img = Image.open(path)
-        img.thumbnail((MAX_SIZE, MAX_SIZE), Image.NEAREST)
+            if img.width > img.height:
+                new_size = (MAX_SIZE, MAX_SIZE * int(img.height / img.width))
+            else:
+                new_size = (MAX_SIZE * int(img.width / img.height), MAX_SIZE)
+            img = img.resize(new_size, Image.BOX)
         img.save(path, "JPEG", quality=QUALITY)
+        return os.path.abspath(path)
 
 
 class PvNotFoundException(Exception):
