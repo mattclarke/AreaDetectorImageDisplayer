@@ -1,8 +1,10 @@
+import argparse
 import os
 import time
 
 import matplotlib.pyplot as plt
 from epics import PV
+from matplotlib.animation import FuncAnimation
 from PIL import Image
 
 MAX_SIZE = 512
@@ -62,10 +64,35 @@ def save_image_as_jpeg(image):
 
 
 if __name__ == "__main__":
-    raw_image_data = get_ad_image_data("13SIM1:image1")
-    img = convert_to_resized_image(raw_image_data)
-    # save_image_as_jpeg(img)
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "-a",
+        "--animation-mode",
+        action="store_true",
+        help="runs as an updating animation",
+    )
+    parser.add_argument(
+        "-s", "--save", action="store_true", help="save the image as jpeg"
+    )
+    args = parser.parse_args()
 
-    plt.imshow(img)
-    plt.colorbar()
-    plt.show()
+    if args.animation_mode:
+        # Basic updating image
+        fig, _ = plt.subplots()
+
+        def update(frame):
+            raw_image_data = get_ad_image_data("13SIM1:image1")
+            img = convert_to_resized_image(raw_image_data)
+            return plt.imshow(img)
+
+        animation = FuncAnimation(fig, update, interval=500)
+        plt.show()
+    else:
+        raw_image_data = get_ad_image_data("13SIM1:image1")
+        img = convert_to_resized_image(raw_image_data)
+        if args.save:
+            save_image_as_jpeg(img)
+
+        image_plot = plt.imshow(img)
+        plt.colorbar()
+        plt.show()
