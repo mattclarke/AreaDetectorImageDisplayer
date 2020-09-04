@@ -62,9 +62,9 @@ def save_image_as_jpeg(image):
 
 
 if __name__ == "__main__":
-    image_data = get_ad_image_data("13SIM1:image1")
-    img = convert_to_resized_image(image_data)
-    save_image_as_jpeg(img)
+    raw_image_data = get_ad_image_data("13SIM1:image1")
+    img = convert_to_resized_image(raw_image_data)
+    # save_image_as_jpeg(img)
 
     plt.imshow(img)
     plt.colorbar()
