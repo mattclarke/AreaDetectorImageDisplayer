@@ -1,0 +1,7 @@
+black
+flake8
+matplotlib
+numpy
+Pillow
+pre-commit
+pyepics
