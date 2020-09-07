@@ -5,3 +5,4 @@ numpy
 Pillow
 pre-commit
 pyepics
+p4p
