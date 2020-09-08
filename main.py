@@ -1,8 +1,10 @@
 import argparse
 import os
 import time
+from enum import Enum
 
 import matplotlib.pyplot as plt
+import numpy as np
 from epics import caget
 from matplotlib.animation import FuncAnimation
 from p4p.client.thread import Context
@@ -12,6 +14,12 @@ MAX_SIZE = 512
 QUALITY = 80
 OUTPUT_DIR = "./images/"
 P4P_CONTEXT = Context("pva")
+
+
+class ColourMode(Enum):
+    MONO = 0
+    RGB1 = 2
+    RGB2 = 3
 
 
 def get_ad_image_data(prefix, use_ca=False):
@@ -24,24 +32,32 @@ def get_ad_image_data(prefix, use_ca=False):
     size_0 = get_pv(f"{prefix}:ArraySize0_RBV")
     size_1 = get_pv(f"{prefix}:ArraySize1_RBV")
     size_2 = get_pv(f"{prefix}:ArraySize2_RBV")
-    colour_mode = get_pv(f"{prefix}:ColorMode_RBV")
+    mode = get_pv(f"{prefix}:ColorMode_RBV")
+    if mode == 0:
+        colour_mode = ColourMode.MONO
+    elif mode == 2:
+        colour_mode = ColourMode.RGB1
+    elif mode == 3:
+        colour_mode = ColourMode.RGB2
+    else:
+        raise Exception(f"Cannot handle {mode}")
     return raw, colour_mode, [size_0, size_1, size_2]
 
 
 def convert_to_resized_image(data):
     buffer, colour_mode, sizes = data
-    if colour_mode == 0:  # Mono
+    if colour_mode == ColourMode.MONO:
         image = Image.frombuffer("L", (sizes[0], sizes[1]), buffer, "raw", "L", 0, 1)
-    elif colour_mode == 2:  # RGB1
+    elif colour_mode == ColourMode.RGB1:
         image = Image.frombuffer(
             "RGB", (sizes[1], sizes[2]), buffer, "raw", "RGB", 0, 1
         )
-    elif colour_mode == 3:  # RGB2
+    elif colour_mode == ColourMode.RGB2:
+        buffer, sizes = transform_rgb2_data(buffer, sizes)
         image = Image.frombuffer(
-            "RGB", (sizes[0], sizes[2]), buffer, "raw", "RGB", 0, 1
+            "RGB", (sizes[1], sizes[2]), buffer, "raw", "RGB", 0, 1
         )
-    else:
-        raise Exception(f"Cannot handle {colour_mode}")
+
     if image.width > MAX_SIZE or image.height > MAX_SIZE:
         if image.width > image.height:
             new_size = (MAX_SIZE, MAX_SIZE * int(image.height / image.width))
@@ -49,6 +65,16 @@ def convert_to_resized_image(data):
             new_size = (MAX_SIZE * int(image.width / image.height), MAX_SIZE)
         image = image.resize(new_size, Image.BOX)
     return image
+
+
+def transform_rgb2_data(buffer, sizes):
+    # RGB2 data is in a different order to RGB1 so it needs to be transformed
+    # into the same "shape" as RGB1
+    sizes = (sizes[1], sizes[0], sizes[2])
+    t = np.reshape(buffer, (sizes[1], sizes[0], sizes[2]))
+    t = np.swapaxes(t, 2, 1)
+    t = np.transpose(t, (1, 0, 2))
+    return t.flatten(), sizes
 
 
 def save_image_as_jpeg(image):
@@ -62,6 +88,8 @@ def save_image_as_jpeg(image):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+
+    parser.add_argument("pv_root", nargs="?", type=str, default="13SIM1:image1")
     parser.add_argument(
         "-a",
         "--animation-mode",
@@ -81,14 +109,14 @@ if __name__ == "__main__":
         fig, _ = plt.subplots()
 
         def update(frame):
-            raw_image_data = get_ad_image_data("13SIM1:image1", args.ca)
+            raw_image_data = get_ad_image_data(args.pv_root, args.ca)
             img = convert_to_resized_image(raw_image_data)
             return plt.imshow(img)
 
         animation = FuncAnimation(fig, update, interval=500)
         plt.show()
     else:
-        raw_image_data = get_ad_image_data("13SIM1:image1", args.ca)
+        raw_image_data = get_ad_image_data(args.pv_root, args.ca)
         img = convert_to_resized_image(raw_image_data)
         if args.save:
             save_image_as_jpeg(img)
