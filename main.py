@@ -3,7 +3,7 @@ import os
 import time
 
 import matplotlib.pyplot as plt
-from epics import PV
+from epics import caget
 from matplotlib.animation import FuncAnimation
 from p4p.client.thread import Context
 from PIL import Image
@@ -14,30 +14,6 @@ OUTPUT_DIR = "./images/"
 P4P_CONTEXT = Context("pva")
 
 
-class PvNotFoundException(Exception):
-    pass
-
-
-class PvGetException(Exception):
-    pass
-
-
-def caget(name, as_str=False):
-    try:
-        pv = PV(name)
-        ans = pv.get(as_string=as_str)
-        if not pv.connected:
-            raise PvNotFoundException(f"Unable to find PV {name}")
-        return ans
-    except PvNotFoundException as err:
-        # PV not found
-        print(err)
-        raise
-    except Exception as err:
-        # Something general went wrong
-        raise PvGetException(f"Unable to get value for PV {name}: {err}")
-
-
 def get_ad_image_data(prefix, use_ca=False):
     if use_ca:
         get_pv = caget
@@ -45,19 +21,25 @@ def get_ad_image_data(prefix, use_ca=False):
         get_pv = P4P_CONTEXT.get
 
     raw = get_pv(f"{prefix}:ArrayData")
-    xsize = get_pv(f"{prefix}:ArraySize0_RBV")
-    ysize = get_pv(f"{prefix}:ArraySize1_RBV")
-    zsize = get_pv(f"{prefix}:ArraySize2_RBV")
+    size_0 = get_pv(f"{prefix}:ArraySize0_RBV")
+    size_1 = get_pv(f"{prefix}:ArraySize1_RBV")
+    size_2 = get_pv(f"{prefix}:ArraySize2_RBV")
     colour_mode = get_pv(f"{prefix}:ColorMode_RBV")
-    return raw, colour_mode, [xsize, ysize, zsize]
+    return raw, colour_mode, [size_0, size_1, size_2]
 
 
 def convert_to_resized_image(data):
     buffer, colour_mode, sizes = data
     if colour_mode == 0:  # Mono
         image = Image.frombuffer("L", (sizes[0], sizes[1]), buffer, "raw", "L", 0, 1)
-    elif colour_mode == 2:
-        image = Image.frombuffer("P", (sizes[1], sizes[2]), buffer, "raw", "P", 0, 1)
+    elif colour_mode == 2:  # RGB1
+        image = Image.frombuffer(
+            "RGB", (sizes[1], sizes[2]), buffer, "raw", "RGB", 0, 1
+        )
+    elif colour_mode == 3:  # RGB2
+        image = Image.frombuffer(
+            "RGB", (sizes[0], sizes[2]), buffer, "raw", "RGB", 0, 1
+        )
     else:
         raise Exception(f"Cannot handle {colour_mode}")
     if image.width > MAX_SIZE or image.height > MAX_SIZE:
@@ -108,8 +90,8 @@ if __name__ == "__main__":
     else:
         raw_image_data = get_ad_image_data("13SIM1:image1", args.ca)
         img = convert_to_resized_image(raw_image_data)
-        # if args.save:
-        #     save_image_as_jpeg(img)
+        if args.save:
+            save_image_as_jpeg(img)
 
         image_plot = plt.imshow(img)
         plt.colorbar()
